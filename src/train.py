@@ -126,9 +126,15 @@ def main() -> None:
     logger.report_scalar("metrics", "accuracy", value=acc, iteration=0)
     logger.report_scalar("metrics", "f1", value=f1, iteration=0)
 
-    # Confusion matrix as an IMAGE (Debug Samples).
+    # Confusion matrix — logged to PLOTS (interactive heatmap, renders inline in the
+    # ClearML web UI, no fileserver fetch) and ALSO as an image in Debug Samples.
     labels = sorted(df["label"].unique())
     cm = confusion_matrix(y_test, y_pred, labels=labels)
+    # -> PLOTS
+    logger.report_confusion_matrix(
+        title="Confusion Matrix", series="test", matrix=cm, iteration=0,
+        xaxis="Predicted", yaxis="Actual", xlabels=labels, ylabels=labels)
+    # -> Debug Samples (the same matrix as a rendered image)
     fig, ax = plt.subplots(figsize=(4, 4))
     ConfusionMatrixDisplay(cm, display_labels=labels).plot(ax=ax, colorbar=False)
     ax.set_title("Confusion Matrix")
