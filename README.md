@@ -4,8 +4,6 @@
 я провёл через весь жизненный цикл в ClearML: от загрузки данных до работающего
 веб-интерфейса.
 
-Модель намеренно простая — `TF-IDF + логистическая регрессия`. Цель проекта не в
-точности модели, а в том, чтобы выстроить всю инфраструктуру MLOps:
 
 **данные → обучение на агенте → реестр моделей → сервинг по HTTP → UI**
 
@@ -40,13 +38,8 @@ python3 -m venv .venv
 # сервер
 cd /opt/clearml && docker compose up -d
 
-# агент на очереди students (в отдельном терминале, пусть висит)
 .venv/bin/clearml-agent daemon --queue students --create-queue --foreground
 ```
-
-**Как проверить:** в веб-интерфейсе (http://localhost:8080) → *Workers & Queues* —
-виден агент на очереди `students`. Всё, что отправлено в эту очередь, считает агент,
-а не моя машина напрямую.
 
 ---
 
@@ -58,9 +51,6 @@ cd /opt/clearml && docker compose up -d
 .venv/bin/python data/prepare_data.py                  # -> data/sentiment.csv (2000 строк)
 .venv/bin/python src/upload_dataset.py --version 1.0.0 # печатает DATASET_ID
 ```
-
-**Как проверить:** раздел *Datasets* → `sentiment-reviews` с версией `1.0.0`.
-Обучение потом берёт данные именно по `dataset_id`, а не из локальной папки.
 
 ---
 
@@ -79,13 +69,6 @@ DSID=<DATASET_ID из этапа 1>
 .venv/bin/python src/train.py --dataset-id $DSID --queue students --ngram-max 2 --max-features 8000 --C 4.0
 ```
 
-**Как проверить:** в *Experiments* две завершённые задачи с разными параметрами и
-метриками, у каждой есть confusion matrix и артефакт `model`. Запустить новый прогон
-можно прямо из интерфейса: правый клик по задаче → *Clone* → поменять параметры → *Enqueue*.
-
-> Маленький нюанс: чтобы агент мог получить код, у репозитория должен быть git-remote
-> (подойдёт GitHub). Без него ClearML не передаёт скрипт и агент падает.
-
 ---
 
 ## Этап 3. Реестр моделей
@@ -95,10 +78,6 @@ DSID=<DATASET_ID из этапа 1>
 ```bash
 .venv/bin/python src/register_best.py   # печатает MODEL_ID
 ```
-
-**Как проверить:** раздел *Models* → `sentiment-clf` со статусом **Published**, с версией,
-тегами (`best`, `production`) и метриками. Published-модель — это запись реестра, а не
-просто файл-артефакт задачи.
 
 ---
 
@@ -117,19 +96,6 @@ docker compose --env-file .env up -d clearml-serving-inference
     --model-id <MODEL_ID> --preprocess "preprocess.py" \
     --name "sentiment-clf" --project "sentiment-mlops"
 ```
-
-**Как проверить:**
-
-```bash
-curl -X POST http://localhost:9090/serve/sentiment -H "Content-Type: application/json" \
-  -d '{"text": "amazing wonderful delightful"}'     # -> positive
-curl -X POST http://localhost:9090/serve/sentiment -H "Content-Type: application/json" \
-  -d '{"text": "terrible awful useless waste"}'      # -> negative
-```
-
-> Датасет синтетический с узким словарём, поэтому модель уверенно реагирует на явные
-> сентимент-слова (amazing, terrible, great…), а на произвольном тексте даёт ~50/50.
-> Для лабы это нормально — важен сам пайплайн.
 
 ---
 
@@ -158,34 +124,6 @@ SERVING_URL=http://localhost:9090/serve/sentiment .venv/bin/streamlit run ui/app
 
 ---
 
-## Скриншоты
-
-Сложил доказательства по этапам в папку `screenshots/`.
-
-**Этап 0 — агент и очередь**
-![Агент в UI](screenshots/00-agent-worker.png)
-![Очередь students](screenshots/00-queue.png)
-
-**Этап 1 — датасет**
-![Dataset v1.0.0](screenshots/01-dataset.png)
-
-**Этап 2 — два эксперимента**
-![Список экспериментов](screenshots/02-experiments-list.png)
-![Параметры и воркер](screenshots/02-experiment-info.png)
-![Метрики](screenshots/02-metrics.png)
-![Confusion matrix](screenshots/02-confusion-matrix.png)
-![Артефакт модели](screenshots/02-artifact.png)
-
-**Этап 3 — реестр**
-![Опубликованная модель](screenshots/03-model-registry.png)
-
-**Этап 4 — эндпоинт**
-![Запросы curl](screenshots/04-endpoint-curl.png)
-![Конфиг эндпоинта](screenshots/04-serving-config.png)
-
-**Этап 5 — интерфейс**
-![Предсказание](screenshots/05-ui-prediction.png)
-![Ошибка при недоступном эндпоинте](screenshots/05-ui-error.png)
 
 ---
 
